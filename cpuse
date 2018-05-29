@@ -1,0 +1,39 @@
+#!/bin/sh
+# Checking CPU utilization rate of all machines in this cluster.
+if [ $UID -eq 0 ]; then
+  echo 'cpuse: root cannot execute rsh'
+  exit 1
+fi
+
+NODELIST=`(echo $HOSTNAME && cat /etc/nodelist)`
+
+echo ""
+echo "*** Please check your process (S)tatus and KILL unnecessary PID. ***"
+echo "  Esp.)   'Z'= zombie    'T'= traced or stopped (ex. Ctrl-Z)        "
+echo "--------------------------------------------------------------------"
+echo "  PID USER      PR  NI  VIRT  RES  SHR S %CPU %MEM    TIME+  COMMAND"
+echo "--------------------------------------------------------------------"
+
+if type "parallel" > /dev/null 2>&1; then
+
+  parallel -k \
+    ' NP=`rsh  {} grep processor /proc/cpuinfo | wc -l` \
+   && JB=`rsh  {} top -b -n 1 | grep -v "  0.0  0.0\| perl\| top\| root\| rpc\| apache\| bash\|,\|  PID" | sed -e "/^$/d"` \
+   && NJ=`echo "${JB}" | sed -e "/^$/d" | wc -l` \
+   &&     echo {}":($NJ/$NP)" \
+   &&     echo "${JB}" | sed -e "/^$/d" \
+    ' ::: $NODELIST
+
+else
+
+  for N in $NODELIST
+  do
+      NP=`rsh  $N grep processor /proc/cpuinfo | wc -l`
+      JB=`rsh  $N top -b -n 1 | grep -v "  0.0  0.0\| perl\| top\| root\| rpc\| apache\| bash\|,\|  PID" | sed -e "/^$/d"`
+      NJ=`echo "${JB}" | sed -e "/^$/d" | wc -l`
+          echo $N":($NJ/$NP)"
+          echo "${JB}" | sed -e "/^$/d" 
+  done
+
+fi
+
